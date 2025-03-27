@@ -13,6 +13,10 @@ eskfEstimator::eskfEstimator()
     bg = Eigen::Vector3d::Zero();
     g << 0.0, 0.0, 9.81;
 
+    window_num = 2; // This window size is used to store the previous frame states. Therefore, yaml::window_size - 1 will be used.
+    window_head_idx = 0;
+    prev_frame_states.clear();
+
     mean_gyr = Eigen::Vector3d(0, 0, 0);
     mean_acc = Eigen::Vector3d(0, 0, 9.81);
 
@@ -143,6 +147,14 @@ void eskfEstimator::setBg(const Eigen::Vector3d &bg_) { bg = bg_; }
 
 void eskfEstimator::setGravity(const Eigen::Vector3d &g_) { g = g_; }
 
+void eskfEstimator::setWindowNum(int num)
+{   
+    // The window size is used to store the previous frame states. Therefore, yaml::window_size - 1 will be used.
+    if (num > 0) {
+        window_num = num - 1;
+    }
+}
+
 Eigen::Vector3d eskfEstimator::getTranslation() { return p; }
 
 Eigen::Quaterniond eskfEstimator::getRotation() { return q; }
@@ -162,6 +174,11 @@ Eigen::Vector3d eskfEstimator::getLastGyr() { return gyr_0; }
 void eskfEstimator::setCovariance(const Eigen::Matrix<double, 17, 17> &covariance_) { covariance = covariance_; }
 
 Eigen::Matrix<double, 17, 17> eskfEstimator::getCovariance() { return covariance; }
+
+int eskfEstimator::getWindowNum() const
+{
+    return window_num;
+}
 
 void eskfEstimator::predict(double dt_, const Eigen::Vector3d &acc_1_, const Eigen::Vector3d &gyr_1_)
 {
@@ -295,4 +312,26 @@ void eskfEstimator::calculateLxly()
 
     lxly.block<3, 1>(0, 0) = b;
     lxly.block<3, 1>(0, 1) = c;
+}
+
+void eskfEstimator::addFrameToWindow(const Eigen::Vector3d& p, const Eigen::Quaterniond& q)
+{
+    frameState new_frame;
+    new_frame.translation = p;
+    new_frame.rotation = q;
+    
+    // Initialization state
+    if (prev_frame_states.size() < window_num) {
+        prev_frame_states.push_back(new_frame);
+    } 
+    // Sliding window using circular buffer
+    else {
+        prev_frame_states[window_head_idx] = new_frame;
+        window_head_idx = (window_head_idx + 1) % window_num;
+    }
+}
+
+std::vector<eskfEstimator::frameState> eskfEstimator::getPrevFrameStates()
+{
+    return prev_frame_states;
 }

@@ -386,6 +386,7 @@ void lioOptimization::makePointTimestamp(std::vector<point3D> &sweep, double tim
             sweep[i].relative_time = sweep[i].timestamp - time_begin;
             sweep[i].alpha_time = sweep[i].relative_time / delta_t;
             sweep[i].relative_time = sweep[i].relative_time * 1000.0;
+            if(sweep[i].alpha_time < 0.0) sweep[i].alpha_time = 0.0 + 1e-5;
             if(sweep[i].alpha_time > 1.0) sweep[i].alpha_time = 1.0 - 1e-5;
         }
     }
@@ -872,10 +873,17 @@ void lioOptimization::run()
                     imu_meas.emplace_back(current_time, std::make_pair(Eigen::Vector3d(rx, ry, rz), Eigen::Vector3d(dx, dy, dz)));
                 }
                 else
-                {
+                {   
+
+                    if (current_time > time_frame) {
+                        // 이미 current_time이 time_frame보다 크면 보간하지 않고 건너뜀
+                        continue;
+                    }
+
                     double dt_1 = time_frame - current_time;
                     double dt_2 = time_imu - time_frame;
                     current_time = time_frame;
+                    
                     assert(dt_1 >= 0);
                     assert(dt_2 >= 0);
                     assert(dt_1 + dt_2 > 0);
@@ -953,9 +961,13 @@ void lioOptimization::run()
                 imu_states.push_back(imu_state_temp);
             }
             else
-            {
+            {   
+
                 double dt_1 = time_frame - current_time;
                 double dt_2 = time_imu - time_frame;
+                if(dt_1 < -1e-6) continue;
+                if(dt_2 < -1e-6) continue;
+                
                 current_time = time_frame;
                 assert(dt_1 >= 0);
                 assert(dt_2 >= 0);

@@ -200,6 +200,7 @@ void gridSampling(const std::vector<point3D> &frame, std::vector<point3D> &keypo
     }
 }
 
+/*
 void distortFrameByConstant(std::vector<point3D> &points, std::vector<imuState> &imu_states, double time_frame_begin, Eigen::Matrix3d &R_imu_lidar, Eigen::Vector3d &t_imu_lidar)
 {
     double time_frame_end, time_point;
@@ -233,7 +234,41 @@ void distortFrameByConstant(std::vector<point3D> &points, std::vector<imuState> 
         iter++;
     }
 }
+*/
 
+void distortFrameByConstant(std::vector<point3D> &points, std::vector<imuState> &imu_states, double time_frame_begin, Eigen::Matrix3d &R_imu_lidar, Eigen::Vector3d &t_imu_lidar)
+{
+    double time_frame_end = imu_states.back().timestamp;
+
+    Eigen::Quaterniond quat_begin = imu_states.front().quat;
+    Eigen::Quaterniond quat_end = imu_states.back().quat;
+
+    Eigen::Vector3d trans_begin = imu_states.front().trans;
+    Eigen::Vector3d trans_end = imu_states.back().trans;
+
+    for (auto iter = points.begin(); iter != points.end(); ++iter)
+    {
+        double time_point = time_frame_begin + (*iter).relative_time / 1000.0;
+        
+        // 안전 처리: 시간 범위 기반 클램핑
+        if (time_point < time_frame_begin - 1e-6) time_point = time_frame_begin;
+        if (time_point > time_frame_end + 1e-6) time_point = time_frame_end;
+
+        if (fabs(time_point - time_frame_begin) < 1e-6) time_point = time_frame_begin + 1e-6;
+        if (fabs(time_point - time_frame_end) < 1e-6) time_point = time_frame_end - 1e-6;
+
+        double alpha_time = (time_point - time_frame_begin) / (time_frame_end - time_frame_begin);
+        
+        // 안전 처리: alpha_time 클램핑
+        if (alpha_time < 0.0) alpha_time = 0.0;
+        if (alpha_time > 1.0) alpha_time = 1.0;
+
+        Eigen::Quaterniond quat_alpha = quat_begin.slerp(alpha_time, quat_end);
+        Eigen::Vector3d trans_alpha = (1.0 - alpha_time) * trans_begin + alpha_time * trans_end;
+
+        (*iter).imu_point = quat_alpha.toRotationMatrix() * (R_imu_lidar * (*iter).raw_point + t_imu_lidar) + trans_alpha;
+    }
+}
 void distortFrameByImu(std::vector<point3D> &points, std::vector<imuState> &imu_states, double time_frame_begin, Eigen::Matrix3d &R_imu_lidar, Eigen::Vector3d &t_imu_lidar)
 {
     double time_imu_begin, time_imu_end, time_point;

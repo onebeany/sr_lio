@@ -34,6 +34,15 @@ private:
     Eigen::Vector3d bg;
     Eigen::Vector3d g;
 
+    // For sliding window
+    int window_num;
+    struct frameState {
+        Eigen::Vector3d translation;
+        Eigen::Quaterniond rotation;
+    };
+    std::vector<frameState> prev_frame_states; // window of previous frames
+    int window_head_idx; // index of the head of the window
+
     Eigen::Matrix<double, 12, 12> noise;
     Eigen::Matrix<double, 17, 1> delta_state;
     Eigen::Matrix<double, 17, 17> covariance;
@@ -85,6 +94,8 @@ public:
 
     void setCovariance(const Eigen::Matrix<double, 17, 17> &covariance_);
 
+    void setWindowNum(int num);
+
     Eigen::Matrix<double, 17, 17> getCovariance();
 
     Eigen::Vector3d getTranslation();
@@ -102,6 +113,12 @@ public:
     Eigen::Vector3d getLastAcc();
 
     Eigen::Vector3d getLastGyr();
+
+    int getWindowNum();
+
+    void addFrameToWindow(const Eigen::Vector3d& p, const Eigen::Quaterniond& q);
+    
+    std::vector<frameState> getPrevFrameStates();
 
     void predict(double dt_, const Eigen::Vector3d &acc_1_, const Eigen::Vector3d &gyr_1_);
 
