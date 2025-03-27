@@ -35,7 +35,7 @@ private:
     Eigen::Vector3d g;
 
     // For sliding window
-    int window_num;
+    int prev_frames_size;
     struct frameState {
         Eigen::Vector3d translation;
         Eigen::Quaterniond rotation;
@@ -45,7 +45,7 @@ private:
 
     Eigen::Matrix<double, 12, 12> noise;
     Eigen::Matrix<double, 17, 1> delta_state;
-    Eigen::Matrix<double, 17, 17> covariance;
+    Eigen::MatrixXd covariance;
 
     Eigen::Matrix<double, 3, 2> lxly;
 
@@ -113,6 +113,8 @@ public:
     Eigen::Vector3d getLastAcc();
 
     Eigen::Vector3d getLastGyr();
+
+    int getTotalStateSize() const;
 
     int getWindowNum();
 

@@ -4,7 +4,7 @@ eskfEstimator::eskfEstimator()
 {
     noise = Eigen::Matrix<double, 12, 12>::Zero();
     delta_state = Eigen::Matrix<double, 17, 1>::Zero();
-    covariance = Eigen::Matrix<double, 17, 17>::Identity();
+    // Covaraince Matrix will be initialized in the setWindowNum function, after the window size is set.
 
     p = Eigen::Vector3d::Zero();
     q = Eigen::Quaterniond::Identity();
@@ -13,7 +13,7 @@ eskfEstimator::eskfEstimator()
     bg = Eigen::Vector3d::Zero();
     g << 0.0, 0.0, 9.81;
 
-    window_num = 2; // This window size is used to store the previous frame states. Therefore, yaml::window_size - 1 will be used.
+    prev_frames_size = 2; // This window size is used to store the previous frame states. Therefore, yaml::window_size - 1 will be used.
     window_head_idx = 0;
     prev_frame_states.clear();
 
@@ -147,12 +147,17 @@ void eskfEstimator::setBg(const Eigen::Vector3d &bg_) { bg = bg_; }
 
 void eskfEstimator::setGravity(const Eigen::Vector3d &g_) { g = g_; }
 
-void eskfEstimator::setWindowNum(int num)
+void eskfEstimator::setWindowNum(int window_num)
 {   
-    // The window size is used to store the previous frame states. Therefore, yaml::window_size - 1 will be used.
-    if (num > 0) {
-        window_num = num - 1;
+
+    if (window_num > 0) {
+        prev_frames_size = window_num - 1;
     }
+
+    int total_state_size = getTotalStateSize();
+
+    covariance.resize(total_state_size, total_state_size);
+    covarinace.setIdentity();
 }
 
 Eigen::Vector3d eskfEstimator::getTranslation() { return p; }
@@ -175,9 +180,36 @@ void eskfEstimator::setCovariance(const Eigen::Matrix<double, 17, 17> &covarianc
 
 Eigen::Matrix<double, 17, 17> eskfEstimator::getCovariance() { return covariance; }
 
+int getTotalStateSize()
+{
+    return 17 + 6 * prev_frames_size;
+}
+
 int eskfEstimator::getWindowNum() const
 {
-    return window_num;
+    return prev_frames_size;
+}
+
+void eskfEstimator::addFrameToWindow(const Eigen::Vector3d& p, const Eigen::Quaterniond& q)
+{
+    frameState new_frame;
+    new_frame.translation = p;
+    new_frame.rotation = q;
+    
+    // Initialization state
+    if (prev_frame_states.size() < prev_frames_size) {
+        prev_frame_states.push_back(new_frame);
+    } 
+    // Sliding window using circular buffer
+    else {
+        prev_frame_states[window_head_idx] = new_frame;
+        window_head_idx = (window_head_idx + 1) % prev_frames_size;
+    }
+}
+
+std::vector<eskfEstimator::frameState> eskfEstimator::getPrevFrameStates()
+{
+    return prev_frame_states;
 }
 
 void eskfEstimator::predict(double dt_, const Eigen::Vector3d &acc_1_, const Eigen::Vector3d &gyr_1_)
@@ -208,7 +240,10 @@ void eskfEstimator::predict(double dt_, const Eigen::Vector3d &acc_1_, const Eig
 
     Eigen::Matrix<double, 3, 2> B_x = numType::derivativeS2(g);
 
-    Eigen::Matrix<double, 17, 17> F_x = Eigen::MatrixXd::Zero(17, 17);
+    int total_state_size = getTotalStateSize();
+    int prev_states_size = 6 * prev_frames_size;
+
+    Eigen::MatrixXd F_x = Eigen::MatrixXd::Zero(total_state_size, total_state_size);
     F_x.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();
     F_x.block<3, 3>(0, 6) = Eigen::Matrix3d::Identity() * dt;
     F_x.block<3, 3>(3, 3) = Eigen::Matrix3d::Identity() - R_omega_x * dt;
@@ -220,8 +255,11 @@ void eskfEstimator::predict(double dt_, const Eigen::Vector3d &acc_1_, const Eig
     F_x.block<3, 3>(9, 9) = Eigen::Matrix3d::Identity();
     F_x.block<3, 3>(12, 12) = Eigen::Matrix3d::Identity();
     F_x.block<2, 2>(15, 15) = - 1.0 / (g.norm() * g.norm()) * B_x.transpose() * numType::skewSymmetric(g) * numType::skewSymmetric(g) * B_x;
+    if(prev_states_size > 0){
+        F_x.block<prev_states_size, prev_states_size>(17, 17) = Eigen::MatrixXd::Identity(prev_states_size, prev_states_size);
+    }
 
-    Eigen::Matrix<double, 17, 12> F_w = Eigen::MatrixXd::Zero(17, 12);
+    Eigen::MatrixXd F_w = Eigen::MatrixXd::Zero(total_state_size, 12);
     F_w.block<3, 3>(6, 0) = - q_before.toRotationMatrix() * dt;
     F_w.block<3, 3>(3, 3) = - Eigen::Matrix3d::Identity() * dt;
     F_w.block<3, 3>(9, 6) = - Eigen::Matrix3d::Identity() * dt;
@@ -244,6 +282,8 @@ void eskfEstimator::observe(const Eigen::Matrix<double, 17, 1> &d_x_)
     Eigen::Matrix<double, 3, 2> B_x = numType::derivativeS2(g);
     Eigen::Vector3d so3_dg = B_x * d_x_.tail<2>();
     g = numType::so3ToRotation(so3_dg) * g;
+
+    // TODO: Update sliding window states
 }
 
 void eskfEstimator::observePose(const Eigen::Vector3d &translation, const Eigen::Quaterniond &rotation, double trans_noise, double ang_noise)
@@ -314,24 +354,3 @@ void eskfEstimator::calculateLxly()
     lxly.block<3, 1>(0, 1) = c;
 }
 
-void eskfEstimator::addFrameToWindow(const Eigen::Vector3d& p, const Eigen::Quaterniond& q)
-{
-    frameState new_frame;
-    new_frame.translation = p;
-    new_frame.rotation = q;
-    
-    // Initialization state
-    if (prev_frame_states.size() < window_num) {
-        prev_frame_states.push_back(new_frame);
-    } 
-    // Sliding window using circular buffer
-    else {
-        prev_frame_states[window_head_idx] = new_frame;
-        window_head_idx = (window_head_idx + 1) % window_num;
-    }
-}
-
-std::vector<eskfEstimator::frameState> eskfEstimator::getPrevFrameStates()
-{
-    return prev_frame_states;
-}
