@@ -1,3 +1,5 @@
+// lioOptimization.cpp
+
 #include "lioOptimization.h"
 
 cloudFrame::cloudFrame(std::vector<point3D> &point_frame_, state *p_state_)
@@ -7,6 +9,7 @@ cloudFrame::cloudFrame(std::vector<point3D> &point_frame_, state *p_state_)
     p_state = p_state_;
 }
 
+/* Legacy */
 cloudFrame::cloudFrame(cloudFramePtr p_cloud_frame)
 {
     time_sweep_begin = p_cloud_frame->time_sweep_begin;
@@ -668,7 +671,7 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
     // When the window is full
     else
     {
-        eskf_pro->prev_frames[eskf_pro->prev_frames_w_head] = p_frame;
+        eskf_pro->prev_frames_window[eskf_pro->prev_frames_w_head] = p_frame;
         eskf_pro->prev_frames_w_head = (eskf_pro->prev_frames_w_head + 1) % eskf_pro->prev_frames_w_size; // Using circular buffer for O(1)
     }
 
