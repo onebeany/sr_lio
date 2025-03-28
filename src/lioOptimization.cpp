@@ -27,16 +27,15 @@ cloudFrame::cloudFrame(cloudFrame *p_cloud_frame)
     dt_offset = p_cloud_frame->dt_offset;
 }
 
-void cloudFrame::release()
+cloudFrame::~cloudFrame()
 {
     std::vector<point3D>().swap(point_frame);
 
-    if(p_state != nullptr)
+    if(p_state != nullptr){
         p_state->release();
-
-    delete p_state;
-
-    p_state = nullptr;
+        delete p_state;
+        p_state = nullptr;
+    }
 }
 
 estimationSummary::estimationSummary()
@@ -488,7 +487,7 @@ cloudFrame* lioOptimization::buildFrame(std::vector<point3D> &cut_sweep, state *
         }
     }
 
-    cloudFrame *p_frame = new cloudFrame(reconstructed_sweep, cur_state);
+    cloudFramePtr p_frame = std::make_shared<cloudFrame>(reconstructed_sweep, cur_state);
     p_frame->time_sweep_begin = time_sweep_begin;
     p_frame->time_sweep_end = timestamp_begin + timestamp_offset;
     p_frame->time_frame_begin = time_frame_begin;
@@ -657,9 +656,21 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
 
     const_frame.insert(const_frame.end(), cut_sweep.begin(), cut_sweep.end());
 
-    cloudFrame *p_frame = buildFrame(const_frame, cur_state, timestamp_begin, timestamp_offset);
+    cloudFramePtr p_frame = buildFrame(const_frame, cur_state, timestamp_begin, timestamp_offset);
 
     optimizeSummary summary = stateEstimation(p_frame);
+
+    // Initialization
+    if(eskf->prev_frames.size() < eskf->prev_frames_w_size)
+    {
+        eskf->prev_frames_window.push_back(p_frame);
+    }
+    // When the window is full
+    else
+    {
+        essk->prev_frames[eskf->prev_frames_w_head] = p_frame;
+        eskf->prev_frames_w_head = (eskf->prev_frames_w_head + 1) % eskf->prev_frames_w_size; // Using circular buffer for O(1)
+    }
 
     std::cout << "after solution: " << std::endl;
     std::cout << "rotation: " << p_frame->p_state->rotation.x() << " " << p_frame->p_state->rotation.y() << " " 
@@ -690,8 +701,8 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
         {
             while (all_cloud_frame.size() > std::max(2, sweep_cut_num))
             {
-                recordSinglePose(all_cloud_frame[0]);
-                all_cloud_frame[0]->release();
+                recordSinglePose(all_cloud_frame[0].get());
+                //all_cloud_frame[0]->release();
                 all_cloud_frame.erase(all_cloud_frame.begin());
                 num_remove++;
             }
@@ -702,8 +713,8 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
     {
         while (all_cloud_frame.size() > options.num_for_initialization)
         {
-            recordSinglePose(all_cloud_frame[0]);
-            all_cloud_frame[0]->release();
+            recordSinglePose(all_cloud_frame[0].get());
+            //all_cloud_frame[0]->release();
             all_cloud_frame.erase(all_cloud_frame.begin());
             num_remove++;
         }

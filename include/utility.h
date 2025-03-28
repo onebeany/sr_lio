@@ -18,8 +18,8 @@
 
 // cloud processing
 #include "cloudProcessing.h"
-
 #include "cloudMap.h"
+#include "lioOptimization.h"
 
 #define THETA_THRESHOLD 0.0001
 #define MIN_INI_COUNT 10

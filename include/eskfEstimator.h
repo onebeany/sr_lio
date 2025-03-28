@@ -35,13 +35,9 @@ private:
     Eigen::Vector3d g;
 
     // For sliding window
-    int prev_frames_size;
-    struct frameState {
-        Eigen::Vector3d translation;
-        Eigen::Quaterniond rotation;
-    };
-    std::vector<frameState> prev_frame_states; // window of previous frames
-    int window_head_idx; // index of the head of the window
+    int prev_frames_w_size;
+    int prev_frames_w_head;
+    std::vector<CloudFramePtr> prev_frames_window; // window of previous frames
 
     Eigen::Matrix<double, 12, 12> noise;
     Eigen::Matrix<double, 17, 1> delta_state;
@@ -92,7 +88,7 @@ public:
 
     void setGravity(const Eigen::Vector3d &g_);
 
-    void setCovariance(const Eigen::Matrix<double, 17, 17> &covariance_);
+    void setCovariance(const Eigen::Matrix<double, 17, 17> &covariance_); // TODO: Change matrix size into dynamic
 
     void setWindowNum(int num);
 
@@ -117,14 +113,10 @@ public:
     int getTotalStateSize() const;
 
     int getWindowNum();
-
-    void addFrameToWindow(const Eigen::Vector3d& p, const Eigen::Quaterniond& q);
     
-    std::vector<frameState> getPrevFrameStates();
-
     void predict(double dt_, const Eigen::Vector3d &acc_1_, const Eigen::Vector3d &gyr_1_);
 
-    void observe(const Eigen::Matrix<double, 17, 1> &d_x_);
+    void observe(const Eigen::Matrix<double, 17, 1> &d_x_); // TODO: Change matrix size into dynamic
 
     void observePose(const Eigen::Vector3d &translation, const Eigen::Quaterniond &rotation, double trans_noise = 0.001, double ang_noise = 0.001);
 

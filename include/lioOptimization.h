@@ -6,6 +6,7 @@
 #include <fstream>
 #include <vector>
 #include <queue>
+#include <memory>
 
 // ros
 #include <ros/ros.h>
@@ -48,6 +49,8 @@
 #include "utility.h"
 #include "parameters.h"
 
+using CloudFramePtr = std::shared_ptr<cloudFrame>;
+
 class cloudFrame
 {
 public:
@@ -72,7 +75,8 @@ public:
 
     cloudFrame(cloudFrame *p_cloud_frame);
 
-    void release();
+    ~cloudFrame();
+    //void release();
 };
 
 struct Neighborhood {
@@ -177,7 +181,7 @@ private:
     std::queue<std::vector<point3D>> lidar_buffer;
     std::queue<sensor_msgs::Imu::ConstPtr> imu_buffer;
 
-    std::vector<cloudFrame*> all_cloud_frame;
+    std::vector<CloudFramePtr> all_cloud_frame;
 
     pcl::PointCloud<pcl::PointXYZINormal>::Ptr down_cloud_body;
     pcl::PointCloud<pcl::PointXYZINormal>::Ptr down_cloud_world;
