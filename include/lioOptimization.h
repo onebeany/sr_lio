@@ -73,7 +73,7 @@ public:
 
     cloudFrame(std::vector<point3D> &point_frame_, state *p_state_);
 
-    cloudFrame(cloudFrame *p_cloud_frame);
+    cloudFrame(cloudFramePtr p_cloud_frame);
 
     ~cloudFrame();
     //void release();
@@ -247,19 +247,19 @@ public:
     // main loop
 
     // data handle and state estimation
-    cloudFrame* buildFrame(std::vector<point3D> &const_frame, state *cur_state, double timestamp_begin, double timestamp_offset);
+    cloudFramePtr  buildFrame(std::vector<point3D> &const_frame, state *cur_state, double timestamp_begin, double timestamp_offset);
 
     void makePointTimestamp(std::vector<point3D> &sweep, double time_begin, double time_end);
 
     void stateInitialization(state *cur_state);
 
-    optimizeSummary stateEstimation(cloudFrame *p_frame);
+    optimizeSummary stateEstimation(cloudFramePtr p_frame);
 
-    optimizeSummary optimize(cloudFrame *p_frame, const icpOptions &cur_icp_options, double sample_voxel_size);
+    optimizeSummary optimize(cloudFramePtr p_frame, const icpOptions &cur_icp_options, double sample_voxel_size);
 
-    optimizeSummary buildPlaneResiduals(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, std::vector<planeParam> &plane_residuals, cloudFrame *p_frame, double &loss_sum);
+    optimizeSummary buildPlaneResiduals(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, std::vector<planeParam> &plane_residuals, cloudFramePtr p_frame, double &loss_sum);
 
-    optimizeSummary updateIEKF(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, cloudFrame *p_frame);
+    optimizeSummary updateIEKF(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, cloudFramePtr p_frame);
 
     Neighborhood computeNeighborhoodDistribution(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d>> &points);
 
@@ -268,9 +268,9 @@ public:
     // data handle and state estimation
 
     // map update
-    void addPointToMap(voxelHashMap &map, const Eigen::Vector3d &point, double voxel_size, int max_num_points_in_voxel, double min_distance_points, int min_num_points, cloudFrame* p_frame);
+    void addPointToMap(voxelHashMap &map, const Eigen::Vector3d &point, double voxel_size, int max_num_points_in_voxel, double min_distance_points, int min_num_points, cloudFramePtr  p_frame);
 
-    void addPointsToMap(voxelHashMap &map, cloudFrame* p_frame, double voxel_size, int max_num_points_in_voxel, double min_distance_points, int min_num_points = 0);
+    void addPointsToMap(voxelHashMap &map, cloudFramePtr  p_frame, double voxel_size, int max_num_points_in_voxel, double min_distance_points, int min_num_points = 0);
 
     void removePointsFarFromLocation(voxelHashMap &map, const Eigen::Vector3d &location, double distance);
 
@@ -278,19 +278,19 @@ public:
     // map update
 
     // save result to device
-    void recordSinglePose(cloudFrame *p_frame);
+    void recordSinglePose(cloudFramePtr p_frame);
     // save result to device
 
     // publish result by ROS for visualization
-    void publish_path(ros::Publisher pub_path,cloudFrame *p_frame);
+    void publish_path(ros::Publisher pub_path,cloudFramePtr p_frame);
 
-    void set_posestamp(geometry_msgs::PoseStamped &body_pose_out,cloudFrame *p_frame);
+    void set_posestamp(geometry_msgs::PoseStamped &body_pose_out,cloudFramePtr p_frame);
 
-    void addPointToPcl(pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_points, const Eigen::Vector3d& point, cloudFrame *p_frame);
-    void publishCLoudWorld(ros::Publisher & pub_cloud_world, pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudFullRes, cloudFrame* p_frame);
+    void addPointToPcl(pcl::PointCloud<pcl::PointXYZI>::Ptr pcl_points, const Eigen::Vector3d& point, cloudFramePtr p_frame);
+    void publishCLoudWorld(ros::Publisher & pub_cloud_world, pcl::PointCloud<pcl::PointXYZI>::Ptr laserCloudFullRes, cloudFramePtr  p_frame);
 
     pcl::PointCloud<pcl::PointXYZI>::Ptr points_world;
-    void publish_odometry(const ros::Publisher & pubOdomAftMapped, cloudFrame *p_frame);
+    void publish_odometry(const ros::Publisher & pubOdomAftMapped, cloudFramePtr p_frame);
     // publish result by ROS for visualization
 
     tf::TransformBroadcaster tfBroadcaster;
