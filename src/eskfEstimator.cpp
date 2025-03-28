@@ -175,7 +175,7 @@ Eigen::Vector3d eskfEstimator::getLastAcc() { return acc_0; }
 
 Eigen::Vector3d eskfEstimator::getLastGyr() { return gyr_0; }
 
-void eskfEstimator::setCovariance(const Eigen::Matrix<double, 17, 17> &covariance_) { covariance = covariance_; }
+void eskfEstimator::setCovariance(const Eigen::MatrixXd &covariance_) { covariance = covariance_; }
 
 Eigen::Matrix<double, 17, 17> eskfEstimator::getCovariance() { return covariance; }
 

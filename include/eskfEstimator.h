@@ -88,11 +88,11 @@ public:
 
     void setGravity(const Eigen::Vector3d &g_);
 
-    void setCovariance(const Eigen::Matrix<double, 17, 17> &covariance_); // TODO: Change matrix size into dynamic
+    void setCovariance(const Eigen::MatrixXd &covariance_);
 
     void setWindowNum(int num);
 
-    Eigen::Matrix<double, 17, 17> getCovariance();
+    Eigen::MatrixXd getCovariance();
 
     Eigen::Vector3d getTranslation();
 

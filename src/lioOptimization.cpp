@@ -87,7 +87,7 @@ void lioOptimization::readParameters()
     nh.param<int>("common/point_filter_num", para_int, 1);  cloud_pro->setPointFilterNum(para_int);
     nh.param<int>("common/sweep_cut_num", sweep_cut_num, 3); cloud_pro->setSweepCutNum(sweep_cut_num);
     nh.param<std::vector<double>>("common/gravity_acc", v_G, std::vector<double>());
-    np.param<int>("common/window_num", window_num, 3); eskf_pro->setWindowNum(window_num);
+    nh.param<int>("common/window_num", window_num, 3); eskf_pro->setWindowNum(window_num);
     nh.param<bool>("debug_output", debug_output, false);
     nh.param<std::string>("output_path", output_path, "");
 
