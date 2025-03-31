@@ -66,6 +66,7 @@ public:
     state *p_state;
 
     std::vector<point3D> point_frame;
+    std::shared_ptr<std::vector<point3D>> keypoints;
 
     double offset_begin;
     double offset_end;

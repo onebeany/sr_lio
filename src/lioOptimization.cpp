@@ -5,8 +5,8 @@
 cloudFrame::cloudFrame(std::vector<point3D> &point_frame_, state *p_state_)
 {
     point_frame.insert(point_frame.end(), point_frame_.begin(), point_frame_.end());
-
     p_state = p_state_;
+    keypoints = std::make_shared<std::vector<point3D>>();
 }
 
 /* Legacy */

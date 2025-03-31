@@ -38,7 +38,7 @@ private:
     int prev_frames_w_size;
     int prev_frames_w_head;
     std::vector<CloudFramePtr> prev_frames_window; // window of previous frames
-
+    
     Eigen::Matrix<double, 12, 12> noise;
     Eigen::MatrixXd error_state;
     Eigen::MatrixXd covariance;

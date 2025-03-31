@@ -27,7 +27,7 @@ optimizeSummary lioOptimization::buildPlaneResiduals(const icpOptions &cur_icp_o
     Eigen::Quaterniond end_quat = Eigen::Quaterniond(current_state->rotation);
     Eigen::Vector3d end_t = current_state->translation;
 
-    auto transformKeypoints = [&]()
+    auto transformKeypoints = [&]() 
     {
         Eigen::Matrix3d R;
         Eigen::Vector3d t;
@@ -154,7 +154,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
 
         if (summary.success == false)
             return summary;
-        
+
         int num_plane_residuals = plane_residuals.size();
 
         Eigen::Matrix<double, Eigen::Dynamic, 6> H_x;
@@ -422,8 +422,8 @@ std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d>> lioOptim
 
 optimizeSummary lioOptimization::optimize(cloudFrame *p_frame, const icpOptions &cur_icp_options, double sample_voxel_size)
 {
-    std::vector<point3D> keypoints;
-    gridSampling(p_frame->point_frame, keypoints, sample_voxel_size);
+    //std::vector<point3D> keypoints;
+    gridSampling(p_frame->point_frame, *(p_frame->keypoints), sample_voxel_size);
 
     optimizeSummary optimize_summary;
 

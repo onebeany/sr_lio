@@ -78,7 +78,7 @@ void eskfEstimator::tryInit(const std::vector<std::pair<double, std::pair<Eigen:
         covariance.block<3, 3>(9, 9) *= 0.001;
         covariance.block<3, 3>(12, 12) *= 0.0001;
         covariance.block<2, 2>(15, 15) *= 0.00001;
-
+        
         initializeNoise();
 
         ROS_INFO("IMU Initialization Done.");
@@ -180,14 +180,19 @@ Eigen::Vector3d eskfEstimator::getLastGyr() { return gyr_0; }
 
 Eigen::MatrixXd eskfEstimator::getCovariance() { return covariance; }
 
-Eigen::Vector3d computeStateChange(CloudFramePtr current_frame, CloudFramePtr previous_frame) {
+Eigen::Vector3d computeDeltaState(CloudFramePtr current_frame, CloudFramePtr previous_frame) {
     Eigen::Quaterniond delta_q = current_frame->p_state->rotation * 
                                  previous_frame->p_state->rotation.inverse();
     Eigen::Vector3d delta_t = current_frame->p_state->translation - 
                               previous_frame->p_state->translation;
     
     Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
-    return Eigen::Vector3d(delta_theta, delta_t);
+
+    Eigen::Vector6d delta_state;
+    delta_state.head<3>() = delta_t;
+    delta_state.tail<3>() = delta_theta;
+    
+    return delta_state;
 }
 
 void eskfEstimator::setCovariance(const Eigen::MatrixXd &covariance_) { covariance = covariance_; }
