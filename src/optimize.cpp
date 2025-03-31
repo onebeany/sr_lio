@@ -154,7 +154,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
 
         if (summary.success == false)
             return summary;
-
+        
         int num_plane_residuals = plane_residuals.size();
 
         Eigen::Matrix<double, Eigen::Dynamic, 6> H_x;
@@ -217,7 +217,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
         d_x_new.segment<3>(3) = J_k_so3 * d_so3;
         d_x_new.segment<2>(15) = J_k_s2 * d_g;
 
-        Eigen::Matrix<double, 17, 17> covariance = eskf_pro->getCovariance();
+        Eigen::MatrixXd covariance = eskf_pro->getCovariance();
 
         for (int j = 0; j < covariance.cols(); j++)
             covariance.block<3, 1>(3, j) = J_k_so3 * covariance.block<3, 1>(3, j);

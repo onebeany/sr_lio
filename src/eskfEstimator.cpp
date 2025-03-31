@@ -3,8 +3,8 @@
 eskfEstimator::eskfEstimator()
 {
     noise = Eigen::Matrix<double, 12, 12>::Zero();
-    delta_state = Eigen::Matrix<double, 17, 1>::Zero();
-    // Covaraince Matrix will be initialized in the setWindowNum function, after the window size is set.
+    // error_state= Eigen::Matrix<double, 17, 1>::Zero();
+    // Covaraince Matrix and error_state will be initialized in the setWindowNum function, after the window size is set.
 
     p = Eigen::Vector3d::Zero();
     q = Eigen::Quaterniond::Identity();
@@ -157,6 +157,9 @@ void eskfEstimator::setWindowNum(int window_num)
 
     covariance.resize(total_state_size, total_state_size);
     covariance.setIdentity();
+    
+    delta_state.resize(total_state_size, 1);
+    delta_state.setZero();
 }
 
 Eigen::Vector3d eskfEstimator::getTranslation() { return p; }
@@ -175,9 +178,19 @@ Eigen::Vector3d eskfEstimator::getLastAcc() { return acc_0; }
 
 Eigen::Vector3d eskfEstimator::getLastGyr() { return gyr_0; }
 
-void eskfEstimator::setCovariance(const Eigen::MatrixXd &covariance_) { covariance = covariance_; }
+Eigen::MatrixXd eskfEstimator::getCovariance() { return covariance; }
 
-Eigen::Matrix<double, 17, 17> eskfEstimator::getCovariance() { return covariance; }
+Eigen::Vector3d computeStateChange(CloudFramePtr current_frame, CloudFramePtr previous_frame) {
+    Eigen::Quaterniond delta_q = current_frame->p_state->rotation * 
+                                 previous_frame->p_state->rotation.inverse();
+    Eigen::Vector3d delta_t = current_frame->p_state->translation - 
+                              previous_frame->p_state->translation;
+    
+    Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
+    return Eigen::Vector3d(delta_theta, delta_t);
+}
+
+void eskfEstimator::setCovariance(const Eigen::MatrixXd &covariance_) { covariance = covariance_; }
 
 int eskfEstimator::getTotalStateSize()
 {
@@ -287,7 +300,7 @@ void eskfEstimator::observePose(const Eigen::Vector3d &translation, const Eigen:
 
     Eigen::Matrix<double, 17, 1> predict_vec = Eigen::Matrix<double, 17, 1>::Zero();
 
-    delta_state = predict_vec + K * update_vec;
+    error_state = predict_vec + K * update_vec;
     covariance = (Eigen::MatrixXd::Identity(17, 17) - K * H) * covariance;
 
     updateAndReset();
@@ -295,25 +308,25 @@ void eskfEstimator::observePose(const Eigen::Vector3d &translation, const Eigen:
 
 void eskfEstimator::updateAndReset()
 {
-    p = p + delta_state.block<3, 1>(0, 0);
-    q = q * numType::so3ToQuat(delta_state.block<3, 1>(3, 0));
-    v = v + delta_state.block<3, 1>(6, 0);
-    ba = ba + delta_state.block<3, 1>(9, 0);
-    bg = bg + delta_state.block<3, 1>(12, 0);
+    p = p + error_state.block<3, 1>(0, 0);
+    q = q * numType::so3ToQuat(error_state.block<3, 1>(3, 0));
+    v = v + error_state.block<3, 1>(6, 0);
+    ba = ba + error_state.block<3, 1>(9, 0);
+    bg = bg + error_state.block<3, 1>(12, 0);
 
-    g = g + lxly * delta_state.block<2, 1>(15, 0);
+    g = g + lxly * error_state.block<2, 1>(15, 0);
     calculateLxly();
 
     projectCovariance();
     
-    delta_state.setZero();
+    error_state.setZero();
 }
 
 void eskfEstimator::projectCovariance()
 {
     Eigen::Matrix<double, 17, 17> J;
     J.block<17, 17>(0, 0) = Eigen::MatrixXd::Identity(17, 17);
-    J.block<3, 3>(3, 3) = Eigen::MatrixXd::Identity(3, 3) - 0.5 * numType::skewSymmetric(delta_state.block<3, 1>(3, 0));
+    J.block<3, 3>(3, 3) = Eigen::MatrixXd::Identity(3, 3) - 0.5 * numType::skewSymmetric(error_state.block<3, 1>(3, 0));
     covariance = J * covariance * J.transpose();
 }
 

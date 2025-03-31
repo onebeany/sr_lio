@@ -40,7 +40,7 @@ private:
     std::vector<CloudFramePtr> prev_frames_window; // window of previous frames
 
     Eigen::Matrix<double, 12, 12> noise;
-    Eigen::Matrix<double, 17, 1> delta_state;
+    Eigen::MatrixXd error_state;
     Eigen::MatrixXd covariance;
 
     Eigen::Matrix<double, 3, 2> lxly;
@@ -110,6 +110,8 @@ public:
 
     Eigen::Vector3d getLastGyr();
 
+    Eigen::Vector3d computeDeltaState();
+    
     int getTotalStateSize() const;
 
     int getWindowNum();
