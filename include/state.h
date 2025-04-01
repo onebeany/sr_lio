@@ -21,6 +21,9 @@ public:
 	Eigen::Vector3d ba;
 	Eigen::Vector3d bg;
 
+	Eigen::Quaterniond coupled_rotation;
+	Eigen::Vector3d coupled_translation;
+
 	state();
 
 	state(const Eigen::Quaterniond &rotation_, const Eigen::Vector3d &translation_, 

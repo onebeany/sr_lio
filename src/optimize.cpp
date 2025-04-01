@@ -16,16 +16,18 @@
 #include "parameters.h"
 
 optimizeSummary lioOptimization::buildPlaneResiduals(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, 
-    std::vector<planeParam> &plane_residuals, cloudFrame *p_frame, double &loss_sum)
+    std::vector<planeParam> &plane_residuals, cloudFramePtr p_frame, double &loss_sum)
 {
     const short nb_voxels_visited = p_frame->frame_id < cur_icp_options.init_num_frames ? 2 : cur_icp_options.voxel_neighborhood;
     const int kMinNumNeighbors = cur_icp_options.min_number_neighbors;
     const int kThresholdCapacity = p_frame->frame_id < cur_icp_options.init_num_frames ? 1 : cur_icp_options.threshold_voxel_occupancy;
 
-    state *last_state = all_cloud_frame[p_frame->id - sweep_cut_num]->p_state;
+    state *last_state = all_cloud_frame[p_frame->id - sweep_cut_num]->p_state; // TODO: Verify whether this is correct for current implemenataion
     state *current_state = p_frame->p_state;
     Eigen::Quaterniond end_quat = Eigen::Quaterniond(current_state->rotation);
     Eigen::Vector3d end_t = current_state->translation;
+
+    // TODO: Add coupling process (T_k and T_{k-1}, ...)
 
     auto transformKeypoints = [&]() 
     {
@@ -130,7 +132,7 @@ optimizeSummary lioOptimization::buildPlaneResiduals(const icpOptions &cur_icp_o
     }
 }
 
-optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, cloudFrame *p_frame)
+optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, cloudFramePtr p_frame)
 {    
     int max_num_iter = p_frame->frame_id < cur_icp_options.init_num_frames ? 
         std::max(15, cur_icp_options.num_iters_icp) : cur_icp_options.num_iters_icp;
@@ -150,7 +152,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
 
         double loss_old = 0.0;
 
-        summary = buildPlaneResiduals(cur_icp_options, voxel_map_temp, keypoints, plane_residuals, p_frame, loss_old);
+        summary = buildPlaneResiduals(cur_icp_options, voxel_map_temp, *(p_frame->keypoints), plane_residuals, p_frame, loss_old);
 
         if (summary.success == false)
             return summary;
@@ -280,7 +282,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
 
             for (int j = 0; j < covariance.cols(); j++)
                 covariance_new.block<3, 1>(3, j) = J_k_so3 * covariance.block<3, 1>(3, j);
-
+            
             for (int j = 0; j < covariance.cols(); j++)
                 covariance_new.block<2, 1>(15, j) = J_k_s2 * covariance.block<2, 1>(15, j);
 
@@ -420,14 +422,14 @@ std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d>> lioOptim
     return closest_neighbors;
 }
 
-optimizeSummary lioOptimization::optimize(cloudFrame *p_frame, const icpOptions &cur_icp_options, double sample_voxel_size)
+optimizeSummary lioOptimization::optimize(cloudFramePtr p_frame, const icpOptions &cur_icp_options, double sample_voxel_size)
 {
     //std::vector<point3D> keypoints;
     gridSampling(p_frame->point_frame, *(p_frame->keypoints), sample_voxel_size);
 
     optimizeSummary optimize_summary;
 
-    optimize_summary = updateIEKF(cur_icp_options, voxel_map, keypoints, p_frame);
+    optimize_summary = updateIEKF(cur_icp_options, voxel_map, p_frame);
 
     if (!optimize_summary.success) {
         return optimize_summary;

@@ -262,7 +262,7 @@ public:
 
     optimizeSummary buildPlaneResiduals(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, std::vector<planeParam> &plane_residuals, cloudFramePtr p_frame, double &loss_sum);
 
-    optimizeSummary updateIEKF(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, cloudFramePtr p_frame);
+    optimizeSummary updateIEKF(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, cloudFramePtr p_frame);
 
     Neighborhood computeNeighborhoodDistribution(const std::vector<Eigen::Vector3d, Eigen::aligned_allocator<Eigen::Vector3d>> &points);
 

@@ -191,7 +191,7 @@ void lioOptimization::initialValue()
     options.optimize_options.init_num_frames = options.init_num_frames;
 }
 
-void lioOptimization::addPointToMap(voxelHashMap &map, const Eigen::Vector3d &point, double voxel_size, int max_num_points_in_voxel, double min_distance_points, int min_num_points, cloudFramePtr  p_frame)
+void lioOptimization::addPointToMap(voxelHashMap &map, const Eigen::Vector3d &point, double voxel_size, int max_num_points_in_voxel, double min_distance_points, int min_num_points, cloudFramePtr p_frame)
 {
     short kx = static_cast<short>(point[0] / voxel_size);
     short ky = static_cast<short>(point[1] / voxel_size);
