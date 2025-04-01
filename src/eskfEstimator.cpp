@@ -152,11 +152,11 @@ void eskfEstimator::setWindowSize(int window_size_)
 
     int total_state_size = getTotalStateSize();
 
+    error_state.resize(total_state_size, 1);
+    error_state.setZero();
+
     covariance.resize(total_state_size, total_state_size);
     covariance.setIdentity();
-    
-    delta_state.resize(total_state_size, 1);
-    delta_state.setZero();
 }
 
 Eigen::Vector3d eskfEstimator::getTranslation() { return p; }
@@ -177,21 +177,6 @@ Eigen::Vector3d eskfEstimator::getLastGyr() { return gyr_0; }
 
 Eigen::MatrixXd eskfEstimator::getCovariance() { return covariance; }
 
-Eigen::Vector3d computeDeltaState(CloudFramePtr current_frame, CloudFramePtr previous_frame) {
-    Eigen::Quaterniond delta_q = current_frame->p_state->rotation * 
-                                 previous_frame->p_state->rotation.inverse();
-    Eigen::Vector3d delta_t = current_frame->p_state->translation - 
-                              previous_frame->p_state->translation;
-    
-    Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
-
-    Eigen::Vector6d delta_state;
-    delta_state.head<3>() = delta_t;
-    delta_state.tail<3>() = delta_theta;
-    
-    return delta_state;
-}
-
 void eskfEstimator::setCovariance(const Eigen::MatrixXd &covariance_) { covariance = covariance_; }
 
 int eskfEstimator::getTotalStateSize()
@@ -204,7 +189,7 @@ int eskfEstimator::getWindowSize() const
     return window_size;
 }
 
-void addFrameToWindow(CloudFramePtr new_frame) {
+void eskfEstimator::addFrameToWindow(CloudFramePtr new_frame) {
     if (frames_window.size() >= window_size) {
         frames_window.erase(frames_window.begin());
     }

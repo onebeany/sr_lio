@@ -149,36 +149,32 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
     // Compute the coupling equation for the all frames in the sliding window 
     // frames_window[0]: oldest frame, frames_window[window_size-1]: newest frame
 
-    auto& frames_window = eskfEstimator->frames_window;
+    auto& frames_window = eskf_pro->frames_window;
     frames_window.push_back(p_frame);
     const int window_size = frames_window.size(); // For considering when the window is not full (fulfilling process)
 
-    int newest_idx = window_size - 1;
-    frames_window[newest_idx]->p_state->coupled_rotation = frames_window[newest_idx]->p_state->rotation;
-    frames_window[newest_idx]->p_state->coupled_translation = frames_window[newest_idx]->p_state->translation;
+    int curr_frame_idx = window_size - 1;
+    frames_window[curr_frame_idx]->p_state->coupled_rotation = frames_window[curr_frame_idx]->p_state->rotation;
+    frames_window[curr_frame_idx]->p_state->coupled_translation = frames_window[curr_frame_idx]->p_state->translation;
 
-    // Coumpte coupled rotation & translation for each frame, from k to k-1, from k-1 to k-2, ...
-    // from k to k-1 means: k-1 frame's coupled rotation & translation is expressed in k frame's rotation & translation
-    for (int i = 0; i < window_size; i++) {
-        if (i == 0) {
-            // Use the current state as the initial coupled state (k_th frame)
-            window_frames[i]->p_state->coupled_rotation = window_frames[i]->p_state->rotation;
-            window_frames[i]->p_state->coupled_translation = window_frames[i]->p_state->translation;
-        } else {
-            
-            // compute delta rotatoin and translation from k-i to k-i+1
-            Eigen::Quaterniond delta_q = window_frames[i]->p_state->rotation.inverse() * window_frames[i+1]->p_state->rotation;
-            Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
-            
-            Eigen::Vector3d delta_p  = window_frames[i+1]->p_state->translation - window_frames[i]->p_state->translation;
+    // Compute coupled state from olddest to newest-1 (newest to oldest direction)
+    for (int i = curr_frame_idx - 1; i >= 0; i--) {
+        // current frame: i, next frame: i+1
+        Eigen::Quaterniond delta_q = frames_window[i]->p_state->rotation.inverse() * frames_window[i+1]->p_state->rotation;
+        Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
+        
+        Eigen::Vector3d delta_p  = frames_window[i+1]->p_state->translation - frames_window[i]->p_state->translation;
+        
+        int position_error_index = 17 + (curr_frame_idx - 1 - i) * 6; // curr_frame_idx - 1 - i : inverse order of previous frames for considering error state
+        int rotation_error_index = position_error_index + 3;
 
-            window_frames[i]->p_state->coupled_rotation = window_frames[i+1]->p_state->coupled_rotation 
-                                                            * (numType::so3ToRotation(delta_theta)).transpose() 
-                                                            // TODO: multiply exp(error_theta of i frame)
-            window_frames[i]->p_state->coupled_translation = window_frames[i+1]->p_state->coupled_translation 
-                                                                - delta_p; // TODO: add error_translation of i frame
-        }
+        frames_window[i]->p_state->coupled_rotation = frames_window[i+1]->p_state->coupled_rotation 
+                                                        * (numType::so3ToRotation(delta_theta)).transpose() 
+                                                        * numType::so3ToRotation(eskf_pro->error_state.segment<3>(rotation_error_index));
+        frames_window[i]->p_state->coupled_translation = frames_window[i+1]->p_state->coupled_translation 
+                                                            - delta_p + eskf_pro->error_state.segment<3>(position_error_index)
     }
+
 
     for (int i = -1; i < max_num_iter; i++)
     {
@@ -192,9 +188,9 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
             optimizeSummary frame_summary = buildPlaneResiduals(
                 cur_icp_options, 
                 voxel_map_temp, 
-                *(window_frames[i]->keypoints), 
+                *(frames_window[i]->keypoints), 
                 frame_residuals, 
-                window_frames[i], 
+                frames_window[i], 
                 frame_loss
             );
             
@@ -203,7 +199,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
             }
             
             all_residuals.push_back(frame_residuals);
-            all_losses.push_back(frame_loss);
+            all_loss.push_back(frame_loss);
         }
 
         // Combine all residuals into one matrix

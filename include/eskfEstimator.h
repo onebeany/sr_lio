@@ -108,12 +108,10 @@ public:
     Eigen::Vector3d getLastAcc();
 
     Eigen::Vector3d getLastGyr();
-
-    Eigen::Vector3d computeDeltaState();
     
     int getTotalStateSize() const;
 
-    int getWindowNum();
+    int getWindowSize();
     
     void addFrameToWindow(CloudFramePtr new_frame);
 

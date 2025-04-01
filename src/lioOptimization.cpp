@@ -663,7 +663,7 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
 
     optimizeSummary summary = stateEstimation(p_frame);
 
-    eskfEstimator->addFrameToWindow(p_frame);
+    eskf_pro->addFrameToWindow(p_frame);
 
     std::cout << "after solution: " << std::endl;
     std::cout << "rotation: " << p_frame->p_state->rotation.x() << " " << p_frame->p_state->rotation.y() << " " 
