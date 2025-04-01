@@ -3,7 +3,7 @@ common:
     imu_topic:  "/mti30/imu/data"
     point_filter_num: 1
     sweep_cut_num: 2 
-    window_num: 3
+    window_size: 3
     time_sync_en: true  # ONLY turn on when external time synchronization is really not possible
     gravity_acc: [ 0.0, 0.0, 9.79744]
 

@@ -13,9 +13,8 @@ eskfEstimator::eskfEstimator()
     bg = Eigen::Vector3d::Zero();
     g << 0.0, 0.0, 9.81;
 
-    prev_frames_w_size = 2; // This window size is used to store the previous frame states. Therefore, yaml::window_size - 1 will be used.
-    prev_frames_w_head = 0; // Thie is the head index of the window to support circular buffer. 
-    prev_frames_window.clear();
+    window_size = 0;
+    frame_window.clear();
 
     mean_gyr = Eigen::Vector3d(0, 0, 0);
     mean_acc = Eigen::Vector3d(0, 0, 9.81);
@@ -78,7 +77,7 @@ void eskfEstimator::tryInit(const std::vector<std::pair<double, std::pair<Eigen:
         covariance.block<3, 3>(9, 9) *= 0.001;
         covariance.block<3, 3>(12, 12) *= 0.0001;
         covariance.block<2, 2>(15, 15) *= 0.00001;
-        
+
         initializeNoise();
 
         ROS_INFO("IMU Initialization Done.");
@@ -147,11 +146,9 @@ void eskfEstimator::setBg(const Eigen::Vector3d &bg_) { bg = bg_; }
 
 void eskfEstimator::setGravity(const Eigen::Vector3d &g_) { g = g_; }
 
-void eskfEstimator::setWindowNum(int window_num)
+void eskfEstimator::setWindowSize(int window_size_)
 {   
-    if (window_num > 0) {
-        prev_frames_w_size = window_num - 1;
-    }
+    window_size = window_size_;
 
     int total_state_size = getTotalStateSize();
 
@@ -199,12 +196,19 @@ void eskfEstimator::setCovariance(const Eigen::MatrixXd &covariance_) { covarian
 
 int eskfEstimator::getTotalStateSize()
 {
-    return 17 + 6 * prev_frames_w_size;
+    return 17 + 6 * (window_size - 1);
 }
 
-int eskfEstimator::getWindowNum() const
+int eskfEstimator::getWindowSize() const
 {
-    return prev_frames_w_size;
+    return window_size;
+}
+
+void addFrameToWindow(CloudFramePtr new_frame) {
+    if (frames_window.size() >= window_size) {
+        frames_window.erase(frames_window.begin());
+    }
+    frames_window.push_back(new_frame);
 }
 
 void eskfEstimator::predict(double dt_, const Eigen::Vector3d &acc_1_, const Eigen::Vector3d &gyr_1_)
@@ -236,7 +240,7 @@ void eskfEstimator::predict(double dt_, const Eigen::Vector3d &acc_1_, const Eig
     Eigen::Matrix<double, 3, 2> B_x = numType::derivativeS2(g);
 
     int total_state_size = getTotalStateSize();
-    int prev_states_size = 6 * prev_frames_w_size;
+    int prev_states_size = 6 * (window_size - 1);
 
     Eigen::MatrixXd F_x = Eigen::MatrixXd::Zero(total_state_size, total_state_size);
     F_x.block<3, 3>(0, 0) = Eigen::Matrix3d::Identity();

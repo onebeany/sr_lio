@@ -199,7 +199,7 @@ private:
     int sweep_cut_num;
     int index_frame;
 
-    int window_num;
+    int window_size;
 
     double time_max_solver;
     int num_max_iteration;

@@ -24,8 +24,8 @@ optimizeSummary lioOptimization::buildPlaneResiduals(const icpOptions &cur_icp_o
 
     state *last_state = all_cloud_frame[p_frame->id - sweep_cut_num]->p_state; // TODO: Verify whether this is correct for current implemenataion
     state *current_state = p_frame->p_state;
-    Eigen::Quaterniond end_quat = Eigen::Quaterniond(current_state->rotation);
-    Eigen::Vector3d end_t = current_state->translation;
+    Eigen::Quaterniond end_quat = Eigen::Quaterniond(current_state->coupled_rotation);
+    Eigen::Vector3d end_t = current_state->coupled_translation;
 
     // TODO: Add coupling process (T_k and T_{k-1}, ...)
 
@@ -146,29 +146,83 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
 
     optimizeSummary summary;
 
+    // Compute the coupling equation for the all frames in the sliding window 
+    // frames_window[0]: oldest frame, frames_window[window_size-1]: newest frame
+
+    auto& frames_window = eskfEstimator->frames_window;
+    frames_window.push_back(p_frame);
+    const int window_size = frames_window.size(); // For considering when the window is not full (fulfilling process)
+
+    int newest_idx = window_size - 1;
+    frames_window[newest_idx]->p_state->coupled_rotation = frames_window[newest_idx]->p_state->rotation;
+    frames_window[newest_idx]->p_state->coupled_translation = frames_window[newest_idx]->p_state->translation;
+
+    // Coumpte coupled rotation & translation for each frame, from k to k-1, from k-1 to k-2, ...
+    // from k to k-1 means: k-1 frame's coupled rotation & translation is expressed in k frame's rotation & translation
+    for (int i = 0; i < window_size; i++) {
+        if (i == 0) {
+            // Use the current state as the initial coupled state (k_th frame)
+            window_frames[i]->p_state->coupled_rotation = window_frames[i]->p_state->rotation;
+            window_frames[i]->p_state->coupled_translation = window_frames[i]->p_state->translation;
+        } else {
+            
+            // compute delta rotatoin and translation from k-i to k-i+1
+            Eigen::Quaterniond delta_q = window_frames[i]->p_state->rotation.inverse() * window_frames[i+1]->p_state->rotation;
+            Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
+            
+            Eigen::Vector3d delta_p  = window_frames[i+1]->p_state->translation - window_frames[i]->p_state->translation;
+
+            window_frames[i]->p_state->coupled_rotation = window_frames[i+1]->p_state->coupled_rotation 
+                                                            * (numType::so3ToRotation(delta_theta)).transpose() 
+                                                            // TODO: multiply exp(error_theta of i frame)
+            window_frames[i]->p_state->coupled_translation = window_frames[i+1]->p_state->coupled_translation 
+                                                                - delta_p; // TODO: add error_translation of i frame
+        }
+    }
+
     for (int i = -1; i < max_num_iter; i++)
     {
-        std::vector<planeParam> plane_residuals;
+        std::vector<std::vector<planeParam>> all_residuals;
+        std::vector<double> all_loss;
 
-        double loss_old = 0.0;
+        for (int i = 0; i < window_size; i++) {
+            std::vector<planeParam> frame_residuals;
+            double frame_loss = 0.0;
+            
+            optimizeSummary frame_summary = buildPlaneResiduals(
+                cur_icp_options, 
+                voxel_map_temp, 
+                *(window_frames[i]->keypoints), 
+                frame_residuals, 
+                window_frames[i], 
+                frame_loss
+            );
+            
+            if (!frame_summary.success) {
+                return frame_summary;
+            }
+            
+            all_residuals.push_back(frame_residuals);
+            all_losses.push_back(frame_loss);
+        }
 
-        summary = buildPlaneResiduals(cur_icp_options, voxel_map_temp, *(p_frame->keypoints), plane_residuals, p_frame, loss_old);
+        // Combine all residuals into one matrix
+        int total_residuals = 0;
+        for (const auto& residuals : all_residuals) {
+            total_residuals += residuals.size();
+        }
 
-        if (summary.success == false)
-            return summary;
+        // TODO: Determine whether the column size of H_x will be only from the current frame or all frames. (6 or 6*window_size); 3(rotation) + 3(translation)
+        Eigen::MatrixXd H_x(total_residuals, 6);
+        Eigen::VectorXd h(total_residuals);
 
-        int num_plane_residuals = plane_residuals.size();
-
-        Eigen::Matrix<double, Eigen::Dynamic, 6> H_x;
-        Eigen::Matrix<double, Eigen::Dynamic, 1> h; 
-
-        H_x.resize(num_plane_residuals, 6);
-        h.resize(num_plane_residuals, 1);
-
-        for (int i = 0; i < num_plane_residuals; i++)
-        {
-            H_x.block<1, 6>(i, 0) = plane_residuals[i].jacobians;
-            h.block<1, 1>(i, 0) = Eigen::Matrix<double, 1, 1>(plane_residuals[i].distance * plane_residuals[i].weight);
+        int row_idx = 0;
+        for (int i = 0; i < window_size; i++) {
+            for (int j = 0; j < all_residuals[i].size(); j++) {
+                H_x.block<1, 6>(row_idx, 0) = all_residuals[i][j].jacobians;
+                h(row_idx) = all_residuals[i][j].distance * all_residuals[i][j].weight;
+                row_idx++;
+            }
         }
 
         Eigen::Vector3d d_p = eskf_pro->getTranslation() - p_predict;
@@ -282,7 +336,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
 
             for (int j = 0; j < covariance.cols(); j++)
                 covariance_new.block<3, 1>(3, j) = J_k_so3 * covariance.block<3, 1>(3, j);
-            
+
             for (int j = 0; j < covariance.cols(); j++)
                 covariance_new.block<2, 1>(15, j) = J_k_s2 * covariance.block<2, 1>(15, j);
 

@@ -35,10 +35,9 @@ private:
     Eigen::Vector3d g;
 
     // For sliding window
-    int prev_frames_w_size;
-    int prev_frames_w_head;
-    std::vector<CloudFramePtr> prev_frames_window; // window of previous frames
-    
+    int window_size;
+    std::vector<CloudFramePtr> frames_window; // window of previous frames
+
     Eigen::Matrix<double, 12, 12> noise;
     Eigen::MatrixXd error_state;
     Eigen::MatrixXd covariance;
@@ -90,7 +89,7 @@ public:
 
     void setCovariance(const Eigen::MatrixXd &covariance_);
 
-    void setWindowNum(int num);
+    void setWindowSize(int window_size_);
 
     Eigen::MatrixXd getCovariance();
 
@@ -116,6 +115,8 @@ public:
 
     int getWindowNum();
     
+    void addFrameToWindow(CloudFramePtr new_frame);
+
     void predict(double dt_, const Eigen::Vector3d &acc_1_, const Eigen::Vector3d &gyr_1_);
 
     void observe(const Eigen::Matrix<double, 17, 1> &d_x_); // TODO: Change matrix size into dynamic

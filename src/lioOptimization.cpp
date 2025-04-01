@@ -87,7 +87,7 @@ void lioOptimization::readParameters()
     nh.param<int>("common/point_filter_num", para_int, 1);  cloud_pro->setPointFilterNum(para_int);
     nh.param<int>("common/sweep_cut_num", sweep_cut_num, 3); cloud_pro->setSweepCutNum(sweep_cut_num);
     nh.param<std::vector<double>>("common/gravity_acc", v_G, std::vector<double>());
-    nh.param<int>("common/window_num", window_num, 3); eskf_pro->setWindowNum(window_num);
+    nh.param<int>("common/window_size", window_size, 3); eskf_pro->setWindowSize(window_size);
     nh.param<bool>("debug_output", debug_output, false);
     nh.param<std::string>("output_path", output_path, "");
 
@@ -663,17 +663,7 @@ void lioOptimization::process(std::vector<point3D> &cut_sweep, double timestamp_
 
     optimizeSummary summary = stateEstimation(p_frame);
 
-    // Initialization
-    if(eskf_pro->prev_frames_window.size() < eskf_pro->prev_frames_w_size)
-    {
-        eskf_pro->prev_frames_window.push_back(p_frame);
-    }
-    // When the window is full
-    else
-    {
-        eskf_pro->prev_frames_window[eskf_pro->prev_frames_w_head] = p_frame;
-        eskf_pro->prev_frames_w_head = (eskf_pro->prev_frames_w_head + 1) % eskf_pro->prev_frames_w_size; // Using circular buffer for O(1)
-    }
+    eskfEstimator->addFrameToWindow(p_frame);
 
     std::cout << "after solution: " << std::endl;
     std::cout << "rotation: " << p_frame->p_state->rotation.x() << " " << p_frame->p_state->rotation.y() << " " 
