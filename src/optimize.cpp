@@ -152,32 +152,30 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
     auto& frames_window = eskf_pro->frames_window;
     frames_window.push_back(p_frame);
     const int window_size = frames_window.size(); // For considering when the window is not full (fulfilling process)
-
-    int curr_frame_idx = window_size - 1;
-    frames_window[curr_frame_idx]->p_state->coupled_rotation = frames_window[curr_frame_idx]->p_state->rotation;
-    frames_window[curr_frame_idx]->p_state->coupled_translation = frames_window[curr_frame_idx]->p_state->translation;
-
-    // Compute coupled state from olddest to newest-1 (newest to oldest direction)
-    for (int i = curr_frame_idx - 1; i >= 0; i--) {
-        // current frame: i, next frame: i+1
-        Eigen::Quaterniond delta_q = frames_window[i]->p_state->rotation.inverse() * frames_window[i+1]->p_state->rotation;
-        Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
-        
-        Eigen::Vector3d delta_p  = frames_window[i+1]->p_state->translation - frames_window[i]->p_state->translation;
-        
-        int position_error_index = 17 + (curr_frame_idx - 1 - i) * 6; // curr_frame_idx - 1 - i : inverse order of previous frames for considering error state
-        int rotation_error_index = position_error_index + 3;
-
-        frames_window[i]->p_state->coupled_rotation = frames_window[i+1]->p_state->coupled_rotation 
-                                                        * (numType::so3ToRotation(delta_theta)).transpose() 
-                                                        * numType::so3ToRotation(eskf_pro->error_state.segment<3>(rotation_error_index));
-        frames_window[i]->p_state->coupled_translation = frames_window[i+1]->p_state->coupled_translation 
-                                                            - delta_p + eskf_pro->error_state.segment<3>(position_error_index)
-    }
-
-
+    int last_frame_idx = window_size - 1;
+    
     for (int i = -1; i < max_num_iter; i++)
-    {
+    {   
+
+        // Compute coupled state from olddest to newest-1 (newest to oldest direction)
+        for (int i = last_frame_idx - 1; i >= 0; i--) {
+            // current frame: i, next frame: i+1
+            Eigen::Quaterniond delta_q = frames_window[i]->p_state->rotation.inverse() * frames_window[i+1]->p_state->rotation;
+            Eigen::Vector3d delta_theta = numType::quatToSo3(delta_q);
+            
+            Eigen::Vector3d delta_p  = frames_window[i+1]->p_state->translation - frames_window[i]->p_state->translation;
+            
+            int position_error_index = 17 + (last_frame_idx - 1 - i) * 6; // last_frame_idx - 1 - i : inverse order of previous frames for considering error state
+            int rotation_error_index = position_error_index + 3;
+
+            frames_window[i]->p_state->rotation = frames_window[i+1]->p_state->rotation 
+                                                            * (numType::so3ToRotation(delta_theta)).transpose() 
+                                                            * numType::so3ToRotation(eskf_pro->error_state.segment<3>(rotation_error_index));
+            frames_window[i]->p_state->translation = frames_window[i+1]->p_state->translation 
+                                                                - delta_p + eskf_pro->error_state.segment<3>(position_error_index)
+        }
+
+        
         std::vector<std::vector<planeParam>> all_residuals;
         std::vector<double> all_loss;
 
@@ -209,14 +207,14 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
         }
 
         // TODO: Determine whether the column size of H_x will be only from the current frame or all frames. (6 or 6*window_size); 3(rotation) + 3(translation)
-        Eigen::MatrixXd H_x(total_residuals, 6);
-        Eigen::VectorXd h(total_residuals);
+        Eigen::MatrixXd H_x(total_residuals, 6 * window_size);
+        Eigen::MatrixXd h(total_residuals, 1);
 
         int row_idx = 0;
         for (int i = 0; i < window_size; i++) {
             for (int j = 0; j < all_residuals[i].size(); j++) {
                 H_x.block<1, 6>(row_idx, 0) = all_residuals[i][j].jacobians;
-                h(row_idx) = all_residuals[i][j].distance * all_residuals[i][j].weight;
+                h(row_idx, 0)= all_residuals[i][j].distance * all_residuals[i][j].weight;
                 row_idx++;
             }
         }
