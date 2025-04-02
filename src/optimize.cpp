@@ -15,6 +15,7 @@
 #include "utility.h"
 #include "parameters.h"
 
+// TODO: Edit the function to be able to use the sliding window (Especially for Jacobian computation)
 optimizeSummary lioOptimization::buildPlaneResiduals(const icpOptions &cur_icp_options, const voxelHashMap &voxel_map_temp, std::vector<point3D> &keypoints, 
     std::vector<planeParam> &plane_residuals, cloudFramePtr p_frame, double &loss_sum)
 {
@@ -26,8 +27,6 @@ optimizeSummary lioOptimization::buildPlaneResiduals(const icpOptions &cur_icp_o
     state *current_state = p_frame->p_state;
     Eigen::Quaterniond end_quat = Eigen::Quaterniond(current_state->coupled_rotation);
     Eigen::Vector3d end_t = current_state->coupled_translation;
-
-    // TODO: Add coupling process (T_k and T_{k-1}, ...)
 
     auto transformKeypoints = [&]() 
     {
@@ -143,6 +142,7 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
     Eigen::Vector3d ba_predict = eskf_pro->getBa();
     Eigen::Vector3d bg_predict = eskf_pro->getBg();
     Eigen::Vector3d g_predict = eskf_pro->getGravity();
+    // TODO: Add previous frames p and q predictions
 
     optimizeSummary summary;
 
@@ -154,6 +154,9 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
     const int window_size = frames_window.size(); // For considering when the window is not full (fulfilling process)
     int last_frame_idx = window_size - 1;
     
+    Eigen::MatrixXd d_x(17 + 6 * (window_size - 1), 1);
+    d_x.setZero();
+
     for (int i = -1; i < max_num_iter; i++)
     {   
 
@@ -170,9 +173,9 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
 
             frames_window[i]->p_state->rotation = frames_window[i+1]->p_state->rotation 
                                                             * (numType::so3ToRotation(delta_theta)).transpose() 
-                                                            * numType::so3ToRotation(eskf_pro->error_state.segment<3>(rotation_error_index));
+                                                            * numType::so3ToRotation(d_x.segment<3>(rotation_error_index));
             frames_window[i]->p_state->translation = frames_window[i+1]->p_state->translation 
-                                                                - delta_p + eskf_pro->error_state.segment<3>(position_error_index)
+                                                                - delta_p + d_x.segment<3>(position_error_index)
         }
 
         
@@ -206,7 +209,6 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
             total_residuals += residuals.size();
         }
 
-        // TODO: Determine whether the column size of H_x will be only from the current frame or all frames. (6 or 6*window_size); 3(rotation) + 3(translation)
         Eigen::MatrixXd H_x(total_residuals, 6 * window_size);
         Eigen::MatrixXd h(total_residuals, 1);
 
@@ -219,6 +221,12 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
             }
         }
 
+        ////////////////////////////////////
+        // TODO: Add computation of the error state of the previous frames
+        ////////////////////////////////////
+
+
+        // Those error states should be being minized by the optimization process (Minimize the error between the predicted and observed values)
         Eigen::Vector3d d_p = eskf_pro->getTranslation() - p_predict;
         Eigen::Quaterniond d_q = q_predict.inverse() * eskf_pro->getRotation();
         Eigen::Vector3d d_so3 = numType::quatToSo3(d_q);
@@ -252,7 +260,6 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
         Eigen::Matrix<double, 3, 2> B_x_predict = numType::derivativeS2(g_predict);
         Eigen::Vector2d d_g = B_x_predict.transpose() * so3_dg;
 
-        Eigen::Matrix<double, 17, 1> d_x;
         d_x.head<3>() = d_p;
         d_x.segment<3>(3) = d_so3;
         d_x.segment<3>(6) = d_v;
@@ -263,7 +270,8 @@ optimizeSummary lioOptimization::updateIEKF(const icpOptions &cur_icp_options, c
         Eigen::Matrix3d J_k_so3 = Eigen::Matrix3d::Identity() - 0.5 * numType::skewSymmetric(d_so3);
         Eigen::Matrix2d J_k_s2 = Eigen::Matrix2d::Identity() + 0.5 * B_x_predict.transpose() * numType::skewSymmetric(so3_dg) * B_x_predict;
 
-        Eigen::Matrix<double, 17, 1> d_x_new = d_x;
+        Eigen::MatrixXd d_x_new = d_x;
+
         d_x_new.segment<3>(3) = J_k_so3 * d_so3;
         d_x_new.segment<2>(15) = J_k_s2 * d_g;
 
